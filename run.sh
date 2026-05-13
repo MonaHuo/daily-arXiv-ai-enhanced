@@ -25,6 +25,7 @@ if [ -z "$OPENAI_API_KEY" ]; then
     echo "   export LANGUAGE=\"Chinese\"                           # 语言设置 / Language setting"
     echo "   export CATEGORIES=\"cs.CV, cs.CL\"                    # 关注分类 / Categories of interest"
     echo "   export MODEL_NAME=\"gpt-4o-mini\"                     # 模型名称 / Model name"
+    echo "   export AI_API_MAX_REQUESTS_PER_MINUTE=\"20\"          # AI API每分钟请求上限 / AI API requests per minute"
     echo ""
     echo "💡 设置后重新运行此脚本即可进行完整测试 / After setting, rerun this script for complete testing"
     echo "🚀 或者继续运行部分流程（爬取+去重检查）/ Or continue with partial workflow (crawl + dedup check)"
@@ -44,12 +45,14 @@ else
     export CATEGORIES="${CATEGORIES:-cs.CV, cs.CL}"
     export MODEL_NAME="${MODEL_NAME:-gpt-4o-mini}"
     export OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+    export AI_API_MAX_REQUESTS_PER_MINUTE="${AI_API_MAX_REQUESTS_PER_MINUTE:-20}"
     
     echo "🔧 当前配置 / Current configuration:"
     echo "   LANGUAGE: $LANGUAGE"
     echo "   CATEGORIES: $CATEGORIES"
     echo "   MODEL_NAME: $MODEL_NAME"
     echo "   OPENAI_BASE_URL: $OPENAI_BASE_URL"
+    echo "   AI_API_MAX_REQUESTS_PER_MINUTE: $AI_API_MAX_REQUESTS_PER_MINUTE"
 fi
 
 echo ""

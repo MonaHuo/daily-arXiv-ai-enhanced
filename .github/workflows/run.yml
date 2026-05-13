@@ -109,6 +109,8 @@ jobs:
         export OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
         export LANGUAGE="${{ vars.LANGUAGE }}"
         export MODEL_NAME="${{ vars.MODEL_NAME }}"
+        export AI_API_MAX_REQUESTS_PER_MINUTE="${{ vars.AI_API_MAX_REQUESTS_PER_MINUTE }}"
+        export AI_API_MAX_REQUESTS_PER_MINUTE="${AI_API_MAX_REQUESTS_PER_MINUTE:-20}"
         
         python enhance.py --data ../data/${today}.jsonl
         

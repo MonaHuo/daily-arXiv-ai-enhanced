@@ -20,6 +20,7 @@ Otherwise, you can directly use this repo in https://dw-dengwei.github.io/daily-
    3. `MODEL_NAME`: such as "deepseek-chat"
    4. `EMAIL`: your email for push to github
    5. `NAME`: your name for push to github
+   6. `AI_API_MAX_REQUESTS_PER_MINUTE`: optional, defaults to `20`
 7. Go to your-own-repo -> Actions -> arXiv-daily-ai-enhanced
 8. You can manually click **Run workflow** to test if it works well (it may takes about one hour). 
 By default, this action will automatically run every day

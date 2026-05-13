@@ -2,9 +2,9 @@ import os
 import json
 import sys
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict
-from queue import Queue
 from threading import Lock
 # INSERT_YOUR_CODE
 import requests
@@ -27,14 +27,52 @@ if os.path.exists('.env'):
 template = open("template.txt", "r").read()
 system = open("system.txt", "r").read()
 
+
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return parsed
+
+
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=str, required=True, help="jsonline data file")
     parser.add_argument("--max_workers", type=int, default=1, help="Maximum number of parallel workers")
+    parser.add_argument(
+        "--api_requests_per_minute",
+        type=positive_int,
+        default=positive_int(os.environ.get("AI_API_MAX_REQUESTS_PER_MINUTE", "20") or "20"),
+        help="Maximum LLM API requests per minute. Defaults to AI_API_MAX_REQUESTS_PER_MINUTE or 20.",
+    )
     return parser.parse_args()
 
-def process_single_item(chain, item: Dict, language: str) -> Dict:
+
+class RateLimiter:
+    """Thread-safe fixed-interval rate limiter for API request starts."""
+
+    def __init__(self, requests_per_minute: int):
+        if requests_per_minute <= 0:
+            raise ValueError("api_requests_per_minute must be greater than 0")
+        self.interval = 60.0 / requests_per_minute
+        self._lock = Lock()
+        self._next_allowed_at = time.monotonic()
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            wait_seconds = max(0.0, self._next_allowed_at - now)
+            self._next_allowed_at = max(now, self._next_allowed_at) + self.interval
+
+        if wait_seconds > 0:
+            time.sleep(wait_seconds)
+
+
+def process_single_item(chain, item: Dict, language: str, rate_limiter: RateLimiter) -> Dict:
     def is_sensitive(content: str) -> bool:
         """
         调用 spam.dw-dengwei.workers.dev 接口检测内容是否包含敏感词。
@@ -125,6 +163,7 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
     }
     
     try:
+        rate_limiter.wait()
         response: Structure = chain.invoke({
             "language": language,
             "content": item['summary']
@@ -165,10 +204,18 @@ def process_single_item(chain, item: Dict, language: str) -> Dict:
             return None
     return item
 
-def process_all_items(data: List[Dict], model_name: str, language: str, max_workers: int) -> List[Dict]:
+def process_all_items(
+    data: List[Dict],
+    model_name: str,
+    language: str,
+    max_workers: int,
+    api_requests_per_minute: int,
+) -> List[Dict]:
     """并行处理所有数据项"""
     llm = ChatOpenAI(model=model_name).with_structured_output(Structure, method="function_calling")
     print('Connect to:', model_name, file=sys.stderr)
+    rate_limiter = RateLimiter(api_requests_per_minute)
+    print(f'LLM API rate limit: {api_requests_per_minute} requests/minute', file=sys.stderr)
     
     prompt_template = ChatPromptTemplate.from_messages([
         SystemMessagePromptTemplate.from_template(system),
@@ -182,7 +229,7 @@ def process_all_items(data: List[Dict], model_name: str, language: str, max_work
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # 提交所有任务
         future_to_idx = {
-            executor.submit(process_single_item, chain, item, language): idx
+            executor.submit(process_single_item, chain, item, language, rate_limiter): idx
             for idx, item in enumerate(data)
         }
         
@@ -243,7 +290,8 @@ def main():
         data,
         model_name,
         language,
-        args.max_workers
+        args.max_workers,
+        args.api_requests_per_minute
     )
     
     # 保存结果
